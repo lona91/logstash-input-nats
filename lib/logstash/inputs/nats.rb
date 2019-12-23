@@ -15,34 +15,35 @@ class LogStash::Inputs::Nats < LogStash::Inputs::Base
   default :codec, "json"
 
   # HOST
-  config :host, :validate => :string, :default => "127.0.0.1"
+  config :host, :validate => :string, :default => "nats://127.0.0.1:4222"
+  config :channel, :validate => :string, :default => "log"
 
   public
   def register
     @nats = NATS::IO::Client.new
-    nats.connect(@host)
-    puts "Connected to #{nats.connected_server}"
+    @nats.connect(@host)
+    puts "Connected to #{@nats.connected_server}"
   end # def register
 
   def run(queue)
     # we can abort the loop if stop? becomes true
-      @sid = nats.subscribe('logstash') do |msg|
-        @codec.decode(msg) do |event|
-          event.set("host", @host) if !event.include?("host")
-          decorate(event)
-          queue << event
+    @nats.subscribe(@channel) do |msg|
+      @codec.decode(msg) do |event|
+        decorate(event)
+        queue << event
       end
+    end
       # because the sleep interval can be big, when shutdown happens
       # we want to be able to abort the sleep
       # Stud.stoppable_sleep will frequently evaluate the given block
       # and abort the sleep(@interval) if the return value is true
-     
+    while true
+      
     end # loop
   end # def run
 
   def stop
-    nats.unsubscribe(@sid)
-    nats.close
+    @nats.close
     # nothing to do in this case so it is not necessary to define stop
     # examples of common "stop" tasks:
     #  * close sockets (unblocking blocking reads/accepts)
